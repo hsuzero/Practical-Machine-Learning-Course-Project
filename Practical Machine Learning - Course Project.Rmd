@@ -1,0 +1,32 @@
+---
+title: "Practical Machine Learning - Course Project"
+author: "Sheu Jeng-Long"
+date: "11/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## I. Overview
+
+ 
+
+## II. Data Loading and Processing
+
+
+
+## III. Getting, Cleaning and Exploring the data
+
+
+## IV. Prediction Model Building
+
+
+## V. Applying the Selected Model to the Test Data
+
+
+
+
+
+
