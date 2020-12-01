@@ -10,20 +10,165 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## I. Overview
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (http://groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset).
+      
 
- 
+## II. Prepare and Data Loading 
 
-## II. Data Loading and Processing
+First at all, we need to load some packages which we'll use.
+```{r message=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+```
 
+The data consists of a Training data and a Test data (to be used to validate the selected model).The testing dataset is not changed and will only be used for the quiz.
+```{r }
+ UrlTrain <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+ UrlTest  <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+ # download the datasets
+ # testing dataset only used for QUIZ and named as validData
+ training <- read.csv(url(UrlTrain))
+ validData  <- read.csv(url(UrlTest))
+```
+
+```{r eval=FALSE}
+training <- read.csv("./pml-training.csv")
+validData <- read.csv("./pml-testing.csv")
+```
 
 
 ## III. Getting, Cleaning and Exploring the data
+```{r}
+dim(training)
+dim(validData)
+str(training)
+```
+There are 19622 obs. and 160 variables in training dataset and  it is quite large.After examining the structure of the data set, we found that the data and many of the values are "NA".The existence of NA may affect the subsequent data analysis and model establishment, so we need to clean these data.
+Two methods are used here. First at all, use the nzv function in the caret package to process.
 
+```{r}
+nzv <- nzv(training)
+training <- training[,-nzv]
+dim(training)
+```
+
+After processing by the nzv() function, we can observe that the number of variables is reduced to 100. Next, we clean the variables in the data set whose values are NA.
+
+```{r}
+training<- training[, colSums(is.na(training)) == 0]
+str(training)
+```
+
+Looking at the data set, those variables which contain NA value are cleaned, leaving 59 variables in the entire data set.We split the data set into two parts, 70% of the data is used for model building and 30% of the data is used for accuracy verification.
+
+```{r}
+training <- training[,-c(1:5)]
+training$classe <- as.factor(training$classe)
+
+set.seed(123)
+inTrain <- createDataPartition(training$classe, p=0.7)[[1]]
+trainData = training[ inTrain,]
+testData = training[-inTrain,]
+```
 
 ## IV. Prediction Model Building
+  
+Three methods will be applied to model the regressions (in the Train dataset) and the best one (with higher accuracy when applied to the Test dataset) will be used for the quiz predictions. 
+  
+We will test 3 different models : 
+
+* Classification Tree  
+
+* Random Forest  
+
+* Gradient Boosting Method(GBM)
+  
+In order to limit the effects of overfitting, and improve the efficicency of the models, we will use the *cross- validation technique.
+
+In order to avoid the effects of overfitting, we will use the cross- validation technique and use 5 folds as argument.
+
+## (a) train with Classification Tree 
+
+```{r}
+trControl <- trainControl(method="cv", number=5)
+# model build-up
+mod_CT <- train(classe~., data=trainData, method="rpart", trControl=trControl)
+mod_CT
+```
+
+```{r}
+# plot
+rpart.plot(mod_CT$finalModel)
+```
 
 
-## V. Applying the Selected Model to the Test Data
+```{r}
+pred_CT <- predict(mod_CT, newdata = testData)
+confusionMatrix(pred_CT, testData$classe)$table
+confusionMatrix(pred_CT, testData$classe)$overall["Accuracy"]
+```
+
+In the classification tree method, we found that the accuracy is only 57%. The model out-of-sample-error about 0.33 which is considerable.
+
+## (b) train with Random Forest  
+
+```{r}
+# model build-up
+mod_RF <- train(classe~., data=trainData, method="rf", trControl=trControl, verbose=FALSE)
+mod_RF
+```
+
+```{r}
+# plot
+plot(mod_RF, main="Accuracy of Random forest model" )
+```
+
+```{r}
+pred_RF <- predict(mod_RF, newdata = testData)
+confusionMatrix(pred_RF, testData$classe)$table
+confusionMatrix(pred_RF, testData$classe)$overall["Accuracy"]
+```
+  
+The accuracy rate of the random forest method is as high as 99.8%, and the prediction utility is obviously better than classification tree method.Next, let's try the GBM method and observe how accurately of the GBM method is?
+
+## (c) train with Gradient Boosting Method
+```{r}
+mod_GBM <- train(classe~., data=trainData, method="gbm", trControl=trControl, verbose=FALSE)
+mod_GBM
+```
+
+```{r}
+plot(mod_GBM)
+```
+
+```{r}
+pred_GBM <- predict(mod_GBM, newdata = testData)
+confusionMatrix(pred_GBM, testData$classe)$table
+confusionMatrix(pred_GBM, testData$classe)$overall["Accuracy"]
+```
+
+## (d) conclusion   
+After using the three methods to build the model, we compare the accuracy of the three models, and the results are as follows:
+
+```{r,  echo=FALSE}
+df <- data.frame(Model = c("Classification Tree","Random Forest","GBM"), 
+                 Accuracy = c(round(confusionMatrix(pred_CT, testData$classe)$overall[["Accuracy"]],digits=4),
+                              round(confusionMatrix(pred_RF, testData$classe)$overall[["Accuracy"]],digits=4),
+                              round(confusionMatrix(pred_GBM, testData$classe)$overall[["Accuracy"]],digits=4)))
+df
+```
+
+We found that the accuracy of the RF method is the best. Here we choose the RF method as the final prediction algorithm and apply it to validData for prediction.
+
+## V. Applying the Selected Model to the validData
+
+```{r}
+pred_valid <- predict(mod_RF, newdata = validData)
+pred_valid
+```
 
 
 
